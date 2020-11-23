@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	"github.com/XMatrixStudio/Coffee/App/controllers"
+	"github.com/XMatrixStudio/Coffee/App/middleware/auth"
 	"github.com/XMatrixStudio/Coffee/App/models"
 	"github.com/XMatrixStudio/Coffee/App/services"
-	"github.com/XMatrixStudio/Violet.SDK.Go"
+	violetSdk "github.com/XMatrixStudio/Violet.SDK.Go"
 	"github.com/globalsign/mgo/bson"
 	"github.com/kataras/iris/v12/mvc"
 	"github.com/kataras/iris/v12/sessions"
@@ -18,9 +19,10 @@ import (
 
 // Config 配置文件
 type Config struct {
-	Mongo  models.Mongo     `yaml:"Mongo"`  // mongoDB配置
-	Server ServerConfig     `yaml:"Server"` // iris配置
-	Violet violetSdk.Config `yaml:"Violet"` // Violet配置
+	Mongo   models.Mongo     `yaml:"Mongo"`   // mongoDB配置
+	Server  ServerConfig     `yaml:"Server"`  // iris配置
+	Violet  violetSdk.Config `yaml:"Violet"`  // Violet配置
+	JWTAuth auth.JWTAuth     `yaml:"JWTAuth"` // JWTAuth
 }
 
 // ServerConfig 服务器配置
@@ -45,6 +47,16 @@ func RunServer(c Config) {
 	app := iris.New()
 	if c.Server.Dev {
 		// app.Logger().SetLevel("debug")
+	}
+
+	switch c.JWTAuth.Store {
+	case "file":
+		store, err := auth.NewBuntDBStore(c.JWTAuth.FilePath)
+		if err != nil {
+			panic(err)
+		}
+		auth.Init(&c.JWTAuth, store)
+		break
 	}
 
 	sessionManager := sessions.New(sessions.Config{

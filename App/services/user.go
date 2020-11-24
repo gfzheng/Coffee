@@ -3,13 +3,16 @@ package services
 import (
 	"errors"
 
+	"github.com/XMatrixStudio/Coffee/App/middleware/auth"
 	"github.com/XMatrixStudio/Coffee/App/models"
-	"github.com/XMatrixStudio/Violet.SDK.Go"
+	violetSdk "github.com/XMatrixStudio/Violet.SDK.Go"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // UserService 用户服务层
 type UserService interface {
-	Login(name, password string) (valid bool, data string, err error)
+	Login(email, password string) (token string, user models.User, err error)
+	Logout(token string) error
 	Register(name, email, password string) error
 	GetEmailCode(email string) error
 	ValidEmail(email, vCode string) error
@@ -33,24 +36,45 @@ type userService struct {
 }
 
 // Login ...
-func (s *userService) Login(name, password string) (valid bool, data string, err error) {
-	res, err := s.Violet.Login(name, password)
+func (s *userService) Login(email, password string) (token string, user models.User, err error) {
+	user, err = s.Model.GetUserByEmail(email)
 	if err != nil {
 		return
 	}
-	valid = res.Valid
-	// 未激活邮箱
-	if !valid {
-		data = res.Email
+
+	if err = bcrypt.CompareHashAndPassword(StringToBytes(user.Password), StringToBytes(password)); err != nil {
 		return
 	}
-	// 登陆成功
-	data = res.Code
+
+//	token, err = auth.GenerateToken(email)
+//	if err != nil {
+//		return
+//	}
+
 	return
 }
 
+func (s *userService) Logout(token string) error {
+	return auth.DestroyToken(token)
+}
+
 func (s *userService) Register(name, email, password string) error {
-	return s.Violet.Register(name, email, password)
+	pwd, err := bcrypt.GenerateFromPassword(StringToBytes(password), 2)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.Model.AddUser(email, BytesToString(pwd), models.UserInfo{
+		Name:   name,
+		Avatar: "",
+		Bio:    "",
+		Gender: 0,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *userService) GetEmailCode(email string) error {
@@ -62,7 +86,7 @@ func (s *userService) ValidEmail(email, vCode string) error {
 }
 
 func (s *userService) SetUserInfo(id string, info models.UserInfo) error {
-	if info.NikeName == "new_user" {
+	if info.Name == "new_user" {
 		return errors.New("not_allow")
 	}
 	users, err := s.Model.GetUsers()
@@ -70,14 +94,14 @@ func (s *userService) SetUserInfo(id string, info models.UserInfo) error {
 		return errors.New("not_allow")
 	}
 	for _, user := range users {
-		if user.Info.NikeName == info.NikeName {
+		if user.Info.Name == info.Name {
 			return errors.New("not_allow")
 		}
 	}
 	s.GetUserBaseInfo(id)
 	s.UserInfo[id] = UserBaseInfo{
 		Avatar: info.Avatar,
-		Name:   info.NikeName,
+		Name:   info.Name,
 		Gender: info.Gender,
 	}
 	return s.Model.SetUserInfo(id, info)
@@ -93,26 +117,6 @@ func (s *userService) GetLoginURL(backURL string) (url, state string) {
 }
 
 func (s *userService) LoginByCode(code string) (userID string, err error) {
-	// 获取用户Token
-	res, err := s.Violet.GetToken(code)
-	if err != nil {
-		return
-	}
-	// 保存数据并获取用户信息
-	user, err := s.Model.GetUserByVID(res.UserID)
-	if err == nil { // 数据库已存在该用户
-		userID = user.ID.Hex()
-		err = s.Model.SetUserToken(user.ID.Hex(), res.Token)
-	} else if err.Error() == "not found" { // 数据库不存在此用户
-		userNew, errN := s.Violet.GetUserBaseInfo(res.UserID, res.Token)
-		if errN != nil {
-			err = errN
-			return
-		}
-		userBsonID, errN := s.Model.AddUser(res.UserID, res.Token, userNew.Email, userNew.Name, userNew.Info.Avatar, userNew.Info.Bio, userNew.Info.Gender)
-		err = errN
-		userID = userBsonID.Hex()
-	}
 	return
 }
 

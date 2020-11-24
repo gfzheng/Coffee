@@ -77,12 +77,13 @@ Size 存储库分配
  - 无上限
 */
 type User struct {
-	ID       bson.ObjectId `bson:"_id"`   // 用户ID
-	VioletID bson.ObjectId `bson:"vid"`   // VioletID
-	Token    string        `bson:"token"` // Violet 访问令牌
-	Email    string        `bson:"email"` // 用户唯一邮箱
-	Class    int           `bson:"class"` // 用户类型
-	Info     UserInfo      `bson:"info"`  // 用户个性信息
+	ID       bson.ObjectId `bson:"_id"`    // 用户IDs
+	VioletID bson.ObjectId `bson:"vid"`    // VioletID
+	Token    string        `bson:"token"`  // Violet 访问令牌
+	Email    string        `bson:"email"`  // 用户唯一邮箱
+	Password string        `bson:"password"` // 密码
+	Class    int           `bson:"class"`  // 用户类型
+	Info     UserInfo      `bson:"info"`   // 用户个性信息
 
 	MaxSize    int64 `bson:"maxSize"`    // 存储库使用最大上限 -1为无上限 单位为KB
 	UsedSize   int64 `bson:"usedSize"`   // 存储库已用大小 单位为KB
@@ -102,11 +103,10 @@ type User struct {
 
 // UserInfo 用户个性信息
 type UserInfo struct {
-	Name     string `bson:"name"`   // 用户昵称
-	Avatar   string `bson:"avatar"` // 头像URL
-	Bio      string `bson:"bio"`    // 个人简介
-	Gender   int    `bson:"gender"` // 性别
-	NikeName string `bson:"nikeName"`
+	Name   string `bson:"name"`   // 昵称
+	Avatar string `bson:"avatar"` // 头像URL
+	Bio    string `bson:"bio"`    // 个人简介
+	Gender int    `bson:"gender"` // 性别
 }
 
 const (
@@ -128,6 +128,7 @@ func (m *UserModel) GetUsers() (users []User, err error) {
 	return
 }
 
+// ChangeCount ...
 func (m *UserModel) ChangeCount(name, id string, num int) error {
 	if !bson.IsObjectIdHex(id) {
 		return errors.New("not_id")
@@ -135,7 +136,7 @@ func (m *UserModel) ChangeCount(name, id string, num int) error {
 	return m.DB.UpdateId(bson.ObjectIdHex(id), bson.M{"$inc": bson.M{name: num}})
 }
 
-// SetUsedSize 设置大小
+// SetCount 设置大小
 func (m *UserModel) SetCount(id, name string, size int64) error {
 	if !bson.IsObjectIdHex(id) {
 		return errors.New("not_id")
@@ -144,25 +145,17 @@ func (m *UserModel) SetCount(id, name string, size int64) error {
 }
 
 // AddUser 添加用户
-func (m *UserModel) AddUser(vID, token, email, name, avatar, bio string, gender int) (newUser bson.ObjectId, err error) {
-	if !bson.IsObjectIdHex(vID) {
-		err = errors.New("not_id")
-		return
-	}
+func (m *UserModel) AddUser(email, password string, userInfo UserInfo) (newUser bson.ObjectId, err error) {
 	newUser = bson.NewObjectId()
 	err = m.DB.Insert(&User{
 		ID:         newUser,
-		VioletID:   bson.ObjectIdHex(vID),
+		VioletID:   newUser,
+		Token:      "",
 		Email:      email,
+		Password:   password,
 		Class:      1,
 		FilesClass: []string{"文档", "图书", "音乐", "代码", "备份", "其他"}, // 默认分类
-		Info: UserInfo{
-			Name:   name,
-			Avatar: avatar,
-			Bio:    bio,
-			Gender: gender,
-		},
-		Token:      token,
+		Info:       userInfo,
 		MaxSize:    8388608,
 		SingleSize: 2097152,
 	})
@@ -185,7 +178,7 @@ func (m *UserModel) SetUserName(id, name string) error {
 	return m.DB.UpdateId(bson.ObjectIdHex(id), bson.M{"$set": bson.M{"info.name": name}})
 }
 
-// GetUserByID 根据ID查询用户
+// GetUserByID 根据 ID 查询用户
 func (m *UserModel) GetUserByID(id string) (user User, err error) {
 	if !bson.IsObjectIdHex(id) {
 		err = errors.New("not_id")
@@ -195,13 +188,9 @@ func (m *UserModel) GetUserByID(id string) (user User, err error) {
 	return
 }
 
-// GetUserByVID 根据VioletID查询用户
-func (m *UserModel) GetUserByVID(id string) (user User, err error) {
-	if !bson.IsObjectIdHex(id) {
-		err = errors.New("not_id")
-		return
-	}
-	err = m.DB.Find(bson.M{"vid": bson.ObjectIdHex(id)}).One(&user)
+// GetUserByEmail 根据 Email 查询用户
+func (m *UserModel) GetUserByEmail(email string) (user User, err error) {
+	err = m.DB.Find(bson.M{"email": email}).One(&user)
 	return
 }
 

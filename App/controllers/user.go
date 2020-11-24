@@ -3,12 +3,13 @@ package controllers
 import (
 	"regexp"
 
+	"html/template"
+
 	"github.com/XMatrixStudio/Coffee/App/models"
 	"github.com/XMatrixStudio/Coffee/App/services"
 	"github.com/globalsign/mgo/bson"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/sessions"
-	"html/template"
 )
 
 // UsersController Users控制
@@ -159,7 +160,7 @@ type LoginReq struct {
 	Password string `json:"password"`
 }
 
-// PostLogin POST /user/login/pass 密码登陆
+// PostLoginPass POST /user/login/pass 密码登陆
 func (c *UsersController) PostLoginPass() (result CommonRes) {
 	req := LoginReq{}
 	err := c.Ctx.ReadJSON(&req)
@@ -167,28 +168,22 @@ func (c *UsersController) PostLoginPass() (result CommonRes) {
 		result.State = StatusBadReq
 		return
 	}
-	valid, data, err := c.Service.Login(req.Name, req.Password)
+	_, user, err := c.Service.Login(req.Name, req.Password)
 	if err != nil { // 与Violet连接发生错误
 		result.State = StatusError
 		result.Data = err.Error()
 		return
 	}
-	if !valid { // 用户邮箱未激活
-		c.Session.Set("email", data)
-		result.State = StatusNotValid
-		result.Data = data
-		return
-	} else {
-		c.Session.Delete("email")
-	}
+	// if !valid { // 用户邮箱未激活
+	// 	c.Session.Set("email", data)
+	// 	result.State = StatusNotValid
+	// 	result.Data = data
+	// 	return
+	// } else {
+	// 	c.Session.Delete("email")
+	// }
 
-	userID, tErr := c.Service.LoginByCode(data)
-	if tErr != nil { // 无法获取用户详情
-		result.State = StatusError
-		result.Data = tErr.Error()
-		return
-	}
-	c.Session.Set("id", userID)
+	c.Session.Set("id", user.ID)
 	result.State = StatusSuccess
 	return
 }

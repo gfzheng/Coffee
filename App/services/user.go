@@ -59,6 +59,13 @@ func (s *userService) Logout(token string) error {
 }
 
 func (s *userService) Register(name, email, password string) error {
+	if email == "" || name == "" {
+		return errors.New("wrong email")
+	}
+	_, err := s.Model.GetUserByEmail(email)
+	if err == nil {
+		return errors.New("email exists")
+	}
 	pwd, err := bcrypt.GenerateFromPassword(StringToBytes(password), 2)
 	if err != nil {
 		return err

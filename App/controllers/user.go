@@ -183,7 +183,7 @@ func (c *UsersController) PostLoginPass() (result CommonRes) {
 	// 	c.Session.Delete("email")
 	// }
 
-	c.Session.Set("id", user.ID)
+	c.Session.Set("id", user.ID.Hex())
 	result.State = StatusSuccess
 	return
 }
